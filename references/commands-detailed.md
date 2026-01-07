@@ -109,7 +109,7 @@ glab mr unsubscribe 123
 
 ### Listing Issues
 ```bash
-# List all issues
+# List open issues
 glab issue list
 
 # List issues assigned to you
