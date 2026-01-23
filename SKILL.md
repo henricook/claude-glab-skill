@@ -85,7 +85,7 @@ glab issue create --title "Bug in login" --label=bug
 # Link MR to issue
 glab mr create --title "Fix login" --description "Closes #<issue-number>"
 
-# List your assigned issues
+# List your open assigned issues
 glab issue list --assignee=@me
 ```
 
