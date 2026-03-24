@@ -149,9 +149,61 @@ glab api projects/:id/merge_requests
 # Auto-fetch all pages
 glab api --paginate "projects/:id/pipelines/123/jobs?per_page=100"
 
-# POST with data
+# POST with data (flat fields only)
 glab api --method POST projects/:id/issues --field title="Bug" --field description="Details"
 ```
+
+### Inline Diff Comments on MRs (Line Comments)
+
+**IMPORTANT:** `glab api --field` does NOT work for inline diff comments. It fails to serialize nested JSON objects, causing comments to appear as plain notes instead of inline diff comments.
+
+**Use `--input -` to pipe a raw JSON body:**
+
+```bash
+# Compute line_code: SHA1(file_path)_{line}_{line}
+FILE_PATH="path/to/file.php"
+LINE=144
+FILE_SHA=$(echo -n "$FILE_PATH" | sha1sum | cut -d' ' -f1)
+LINE_CODE="${FILE_SHA}_${LINE}_${LINE}"
+
+# Get diff_refs from the MR first:
+# glab api --hostname HOST "projects/PROJECT/merge_requests/IID" | jq .diff_refs
+
+echo "{
+  \"body\": \"Your comment here\",
+  \"position\": {
+    \"position_type\": \"text\",
+    \"base_sha\": \"BASE_SHA\",
+    \"start_sha\": \"START_SHA\",
+    \"head_sha\": \"HEAD_SHA\",
+    \"old_path\": \"$FILE_PATH\",
+    \"new_path\": \"$FILE_PATH\",
+    \"new_line\": $LINE,
+    \"line_range\": {
+      \"start\": {\"line_code\": \"$LINE_CODE\", \"type\": \"new\"},
+      \"end\":   {\"line_code\": \"$LINE_CODE\", \"type\": \"new\"}
+    }
+  }
+}" | glab api --hostname YOUR_HOST \
+  --method POST \
+  --input - \
+  --header "Content-Type: application/json" \
+  "projects/ENCODED_PROJECT/merge_requests/IID/discussions"
+```
+
+**Required position fields:**
+- `base_sha`, `start_sha`, `head_sha` — from MR's `diff_refs`
+- `old_path` AND `new_path` — both required even for unchanged files
+
+**Line type determines which fields to set:**
+
+| Line type | `old_line` | `new_line` | `line_range` |
+|-----------|------------|------------|--------------|
+| Added (`+`) | omit | e.g. `144` | required: `line_code = SHA_{new_line}_{new_line}`, `type: "new"` |
+| Context (unchanged) | e.g. `140` | e.g. `141` | omit entirely |
+| Removed (`-`) | e.g. `143` | omit | required: `line_code = SHA_{old_line}_{old_line}`, `type: "old"` |
+
+`line_code` format: `SHA1(file_path)_{old_line}_{new_line}`
 
 ## Best Practices
 
